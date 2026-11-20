@@ -1,11 +1,14 @@
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
 android {
     namespace = "com.example.portfoliomanager"
     compileSdk = 35
+
     defaultConfig {
         applicationId = "com.example.portfoliomanager"
         minSdk = 26
@@ -13,7 +16,19 @@ android {
         versionCode = 2
         versionName = "2.0"
     }
+
+    // هماهنگ‌سازی نسخه Java روی 17
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // هماهنگ‌سازی نسخه Kotlin روی 17
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
