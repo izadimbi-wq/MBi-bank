@@ -17,11 +17,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -39,6 +38,8 @@ jobs:
           SOURCE_ZIP="$GITHUB_WORKSPACE/MBI-bank-final-upload-v2.zip"
           SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
 
+          echo "Checking source ZIP..."
+
           if [ ! -f "$SOURCE_ZIP" ]; then
             echo "ERROR: Source ZIP not found:"
             echo "$SOURCE_ZIP"
@@ -50,8 +51,9 @@ jobs:
 
           unzip -q "$SOURCE_ZIP" -d "$SOURCE_DIR"
 
-          echo "Source ZIP extracted successfully."
-          echo "Source directory: $SOURCE_DIR"
+          echo "ZIP extracted successfully."
+          echo "Source directory:"
+          echo "$SOURCE_DIR"
 
       - name: Find and validate Android project inside ZIP
         shell: bash
@@ -60,19 +62,26 @@ jobs:
 
           SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
 
+          echo "Searching for gradlew inside ZIP..."
+
           GRADLEW_PATH="$(find "$SOURCE_DIR" -type f -name gradlew -print -quit)"
 
           if [ -z "$GRADLEW_PATH" ]; then
             echo "ERROR: gradlew was not found inside MBI-bank-final-upload-v2.zip."
-            echo "ZIP contents:"
-            find "$SOURCE_DIR" -maxdepth 4 -type f | sort | head -200
+            echo ""
+            echo "Extracted files:"
+            find "$SOURCE_DIR" -maxdepth 5 -type f | sort | head -300
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$GRADLEW_PATH")"
 
-          echo "Android project detected at:"
+          echo ""
+          echo "=========================================="
+          echo "ANDROID PROJECT FOUND"
+          echo "=========================================="
           echo "$PROJECT_DIR"
+          echo "=========================================="
 
           if [ ! -d "$PROJECT_DIR/app" ]; then
             echo "ERROR: app directory was not found beside gradlew."
@@ -84,7 +93,8 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$PROJECT_DIR/settings.gradle" ] && [ ! -f "$PROJECT_DIR/settings.gradle.kts" ]; then
+          if [ ! -f "$PROJECT_DIR/settings.gradle" ] && \
+             [ ! -f "$PROJECT_DIR/settings.gradle.kts" ]; then
             echo "ERROR: settings.gradle or settings.gradle.kts was not found."
             exit 1
           fi
@@ -93,16 +103,15 @@ jobs:
 
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "======================================"
-          echo "BUILD SOURCE: ZIP ONLY"
-          echo "PROJECT_DIR: $PROJECT_DIR"
-          echo "======================================"
-
       - name: Build Debug APK from extracted ZIP only
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
+
+          echo "=========================================="
+          echo "BUILDING EXTRACTED ZIP PROJECT"
+          echo "=========================================="
 
           ./gradlew --no-daemon --stacktrace assembleDebug
 
