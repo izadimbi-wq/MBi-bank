@@ -27,8 +27,12 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
+          set -e
           yes | sdkmanager --licenses
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Extract ONLY the source ZIP
         shell: bash
@@ -38,7 +42,9 @@ jobs:
           SOURCE_ZIP="$GITHUB_WORKSPACE/MBI-bank-final-upload-v2.zip"
           SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
 
-          echo "Checking source ZIP..."
+          echo "=========================================="
+          echo "CHECKING OUTER SOURCE ZIP"
+          echo "=========================================="
 
           if [ ! -f "$SOURCE_ZIP" ]; then
             echo "ERROR: Source ZIP not found:"
@@ -51,26 +57,45 @@ jobs:
 
           unzip -q "$SOURCE_ZIP" -d "$SOURCE_DIR"
 
-          echo "ZIP extracted successfully."
-          echo "Source directory:"
-          echo "$SOURCE_DIR"
+          echo "Outer ZIP extracted successfully."
 
-      - name: Find and validate Android project inside ZIP
+          INNER_ZIP="$SOURCE_DIR/MBI-bank-project-source.zip"
+
+          if [ ! -f "$INNER_ZIP" ]; then
+            echo "ERROR: MBI-bank-project-source.zip was not found."
+            echo ""
+            echo "Outer ZIP contents:"
+            find "$SOURCE_DIR" -maxdepth 5 -type f | sort
+            exit 1
+          fi
+
+          PROJECT_SOURCE_DIR="$SOURCE_DIR/project"
+
+          rm -rf "$PROJECT_SOURCE_DIR"
+          mkdir -p "$PROJECT_SOURCE_DIR"
+
+          unzip -q "$INNER_ZIP" -d "$PROJECT_SOURCE_DIR"
+
+          echo "Inner Android project ZIP extracted successfully."
+
+      - name: Find and validate Android project
         shell: bash
         run: |
           set -e
 
-          SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
+          PROJECT_SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source/project"
 
-          echo "Searching for gradlew inside ZIP..."
+          echo "=========================================="
+          echo "SEARCHING FOR ANDROID PROJECT"
+          echo "=========================================="
 
-          GRADLEW_PATH="$(find "$SOURCE_DIR" -type f -name gradlew -print -quit)"
+          GRADLEW_PATH="$(find "$PROJECT_SOURCE_DIR" -type f -name gradlew -print -quit)"
 
           if [ -z "$GRADLEW_PATH" ]; then
-            echo "ERROR: gradlew was not found inside MBI-bank-final-upload-v2.zip."
+            echo "ERROR: gradlew was not found inside MBI-bank-project-source.zip."
             echo ""
-            echo "Extracted files:"
-            find "$SOURCE_DIR" -maxdepth 5 -type f | sort | head -300
+            echo "Extracted project files:"
+            find "$PROJECT_SOURCE_DIR" -maxdepth 7 -type f | sort | head -300
             exit 1
           fi
 
@@ -80,22 +105,25 @@ jobs:
           echo "=========================================="
           echo "ANDROID PROJECT FOUND"
           echo "=========================================="
-          echo "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR"
           echo "=========================================="
 
           if [ ! -d "$PROJECT_DIR/app" ]; then
             echo "ERROR: app directory was not found beside gradlew."
+            echo "Detected project directory: $PROJECT_DIR"
             exit 1
           fi
 
           if [ ! -d "$PROJECT_DIR/gradle/wrapper" ]; then
-            echo "ERROR: Gradle wrapper directory was not found."
+            echo "ERROR: gradle/wrapper directory was not found."
+            echo "Detected project directory: $PROJECT_DIR"
             exit 1
           fi
 
           if [ ! -f "$PROJECT_DIR/settings.gradle" ] && \
              [ ! -f "$PROJECT_DIR/settings.gradle.kts" ]; then
             echo "ERROR: settings.gradle or settings.gradle.kts was not found."
+            echo "Detected project directory: $PROJECT_DIR"
             exit 1
           fi
 
@@ -110,7 +138,10 @@ jobs:
           set -e
 
           echo "=========================================="
-          echo "BUILDING EXTRACTED ZIP PROJECT"
+          echo "BUILDING ANDROID PROJECT"
+          echo "=========================================="
+          echo "Source: MBI-bank-project-source.zip"
+          echo "Project: ${{ env.PROJECT_DIR }}"
           echo "=========================================="
 
           ./gradlew --no-daemon --stacktrace assembleDebug
