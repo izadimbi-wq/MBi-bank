@@ -21,6 +21,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -30,57 +31,84 @@ jobs:
           yes | sdkmanager --licenses
           sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract Android project
-        run: |
-          test -f MBI-Bank-final-upload-v2.zip
-          rm -rf project
-          mkdir -p project
-          unzip -q MBI-Bank-final-upload-v2.zip -d project
-
-      - name: Find and validate Android project
+      - name: Extract ONLY the source ZIP
         shell: bash
         run: |
-          GRADLEW_PATH="$(find "$GITHUB_WORKSPACE/project" -type f -name gradlew -print -quit)"
+          set -e
+
+          SOURCE_ZIP="$GITHUB_WORKSPACE/MBI-bank-final-upload-v2.zip"
+          SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
+
+          if [ ! -f "$SOURCE_ZIP" ]; then
+            echo "ERROR: Source ZIP not found:"
+            echo "$SOURCE_ZIP"
+            exit 1
+          fi
+
+          rm -rf "$SOURCE_DIR"
+          mkdir -p "$SOURCE_DIR"
+
+          unzip -q "$SOURCE_ZIP" -d "$SOURCE_DIR"
+
+          echo "Source ZIP extracted successfully."
+          echo "Source directory: $SOURCE_DIR"
+
+      - name: Find and validate Android project inside ZIP
+        shell: bash
+        run: |
+          set -e
+
+          SOURCE_DIR="$RUNNER_TEMP/mbi-bank-source"
+
+          GRADLEW_PATH="$(find "$SOURCE_DIR" -type f -name gradlew -print -quit)"
 
           if [ -z "$GRADLEW_PATH" ]; then
-            echo "ERROR: gradlew was not found inside the ZIP archive."
-            echo "Archive contents:"
-            find "$GITHUB_WORKSPACE/project" -maxdepth 4 -type f | head -200
+            echo "ERROR: gradlew was not found inside MBI-bank-final-upload-v2.zip."
+            echo "ZIP contents:"
+            find "$SOURCE_DIR" -maxdepth 4 -type f | sort | head -200
             exit 1
           fi
 
           PROJECT_DIR="$(dirname "$GRADLEW_PATH")"
 
+          echo "Android project detected at:"
+          echo "$PROJECT_DIR"
+
           if [ ! -d "$PROJECT_DIR/app" ]; then
             echo "ERROR: app directory was not found beside gradlew."
-            echo "Detected project directory: $PROJECT_DIR"
-            find "$PROJECT_DIR" -maxdepth 3 -type d
             exit 1
           fi
 
-          if [ ! -d "$PROJECT_DIR/gradle" ]; then
-            echo "ERROR: gradle directory was not found beside gradlew."
-            echo "Detected project directory: $PROJECT_DIR"
+          if [ ! -d "$PROJECT_DIR/gradle/wrapper" ]; then
+            echo "ERROR: Gradle wrapper directory was not found."
             exit 1
           fi
 
           if [ ! -f "$PROJECT_DIR/settings.gradle" ] && [ ! -f "$PROJECT_DIR/settings.gradle.kts" ]; then
             echo "ERROR: settings.gradle or settings.gradle.kts was not found."
-            echo "Detected project directory: $PROJECT_DIR"
             exit 1
           fi
 
           chmod +x "$GRADLEW_PATH"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project found at: $PROJECT_DIR"
 
-      - name: Build Debug APK
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "======================================"
+          echo "BUILD SOURCE: ZIP ONLY"
+          echo "PROJECT_DIR: $PROJECT_DIR"
+          echo "======================================"
+
+      - name: Build Debug APK from extracted ZIP only
         working-directory: ${{ env.PROJECT_DIR }}
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
+        shell: bash
+        run: |
+          set -e
+
+          ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Saba-Portfolio-Manager-debug
+          name: MBI-bank-debug
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
