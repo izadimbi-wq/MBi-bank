@@ -32,10 +32,10 @@ jobs:
 
       - name: Extract Android project
         run: |
-          test -f Saba_Portfolio_Manager_GitHub_Ready.zip
+          test -f MBI-Bank-final-upload-v2.zip
           rm -rf project
           mkdir -p project
-          unzip -q Saba_Portfolio_Manager_GitHub_Ready.zip -d project
+          unzip -q MBI-Bank-final-upload-v2.zip -d project
 
       - name: Find and validate Android project
         shell: bash
